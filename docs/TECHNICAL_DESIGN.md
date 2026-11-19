@@ -28,8 +28,10 @@ YunTV 是供单个用户长期自用的百度网盘电视播放器。首次安�
 - 第一版只读：不上传、删除、移动、重命名或分享文件。
 - 第一版单账号、单百度应用、单电视设备配置。
 - 目录与文件元数据长期缓存；默认不后台扫描，不自动刷新目录。
-- 进入任意文件夹后，自动批量获取该文件夹直属全部视频的 `dlink`，方便随机选择播放。
-- `dlink` 短期缓存，安全有效期按 7 小时计算；官方标称通常为 8 小时。
+- 默认根目录是导航层，只展示直属文件夹，不获取任何 `dlink`。
+- 进入根目录下的具体媒体文件夹后，自动批量获取该文件夹直属全部视频的 `dlink`，方便随机选择播放。
+- `dlink` 在本地持久化缓存 8 小时；新播放开始前保留 5 分钟安全余量。
+- 视频以 16:9 封面卡片展示；封面下载或生成后持久化缓存到本地。
 - `dlink` 实际播放流量不作为文件 API 调用处理。
 - 依赖注入使用显式 `AppContainer`，不引入 Hilt/Koin。
 - Token 使用 Android Keystore 加密保存。
@@ -98,6 +100,7 @@ YunTV 是供单个用户长期自用的百度网盘电视播放器。首次安�
 | OkHttp | 5.5.1 | OAuth 与百度 API 网络层 |
 | Kotlin Serialization | 与 Kotlin 版本匹配 | JSON 解析 |
 | ZXing Core | 3.5.4 | 授权二维码生成 |
+| Coil Compose / Network OkHttp | 3.6.3 | 本地封面与远程缩略图加载 |
 
 Media3 至少包含：
 
@@ -151,7 +154,8 @@ yuntv/
 │  ├─ security/               Android Keystore、TokenVault
 │  └─ ui/                     主题、焦点、通用 TV 组件
 ├─ data/
-│  └─ baidu/                  OAuth、百度 API DTO、Repository 实现
+│  ├─ baidu/                  OAuth、百度 API DTO、Repository 实现
+│  └─ cover/                  封面下载、帧截取、本地持久化与 LRU
 ├─ feature/
 │  ├─ auth/                   二维码授权页
 │  ├─ browser/                文件夹/视频浏览
@@ -169,6 +173,7 @@ yuntv/
 ```text
 feature -> core:model/core:ui
 data:baidu -> core:model/core:network/core:security/core:database
+data:cover -> core:model/core:network/core:database
 app -> all feature + data implementations
 core 不依赖 feature 或 data
 ```
@@ -196,6 +201,13 @@ interface AuthRepository {
 interface PlaybackProgressRepository {
     fun observeProgress(fsId: Long): Flow<PlaybackProgress?>
     suspend fun saveProgress(progress: PlaybackProgress)
+}
+
+interface CoverRepository {
+    fun observeCover(fsId: Long): Flow<LocalCover?>
+    suspend fun ensureCovers(items: List<DriveItem>)
+    suspend fun invalidateCover(fsId: Long)
+    suspend fun trimToSize(maxBytes: Long)
 }
 ```
 
@@ -228,6 +240,14 @@ data class PlaybackSource(
     val obtainedAt: Instant,
     val expiresAt: Instant,
     val requiredHeaders: Map<String, String>
+)
+
+data class LocalCover(
+    val fsId: Long,
+    val localPath: String,
+    val sourceType: CoverSourceType,
+    val width: Int,
+    val height: Int
 )
 ```
 
@@ -323,6 +343,8 @@ User-Agent: pan.baidu.com
 
 - 首次进入未缓存目录时请求网络一次。
 - 已缓存目录立即显示缓存，不自动刷新。
+- 当 `path == root_path` 时只展示直属文件夹；根目录中的直属视频即使存在也不展示、不解析 `dlink`。
+- 当 `path != root_path` 时展示直属子文件夹和直属视频，并进入媒体文件夹的 `dlink` 批处理流程。
 - 用户按菜单键或设置中的“刷新”才发起强制刷新。
 - 返回正好 1000 条时继续分页，每一页独立计为 API 请求。
 - 同一路径同时发生的多个刷新请求必须合并为一个共享协程。
@@ -346,14 +368,15 @@ User-Agent: pan.baidu.com
 规则：
 
 - 一次最多 100 个 `fs_id`。
-- 每次进入一个文件夹，在目录数据可用后，批量解析该文件夹直属的全部视频文件；不递归处理子文件夹。
-- 先过滤仍在 7 小时安全有效期内的缓存，只请求缺失或已过期的视频。
+- 默认根目录 `/apps/视频` 只展示分类文件夹，不调用 `filemetas`。
+- 进入默认根目录下的具体媒体文件夹后，在目录数据可用时批量解析该文件夹直属的全部视频；不递归处理子文件夹。
+- 先过滤仍在 8 小时缓存期内且距离过期超过 5 分钟的缓存，只请求缺失、已过期或即将过期的视频。
 - `fs_id` 超过 100 个时按每批最多 100 个拆分；每批是一次 `filemetas` API 调用。
 - 目录有 37 个视频且无有效缓存时，只需要一次 `filemetas` 调用即可获得全部 `dlink`。
 - `dlink` 解析在后台进行，不阻塞目录缓存首帧；卡片显示“播放地址准备中”，完成后即可播放。
-- 缓存返回的每个 `dlink`，`expiresAt = obtainedAt + 7 hours`。
-- 不使用 URL 中的 `expires=8h` 作为唯一判断，保留 1 小时安全余量。
-- 持久化 `dlink` 允许 App 重启后短期复用，但过期后必须删除。
+- 缓存返回的每个 `dlink`，`expiresAt = obtainedAt + 8 hours`。
+- 缓存记录保留完整 8 小时；新播放开始时若剩余有效期不足 5 分钟，则后台刷新后再播放，避免播放中立即过期。
+- 持久化 `dlink` 允许 App 重启后复用；超过 8 小时必须删除。
 - 长期身份只使用 `fs_id`，不把 `dlink` 当永久地址。
 
 ### 7.3 播放 URL
@@ -416,6 +439,20 @@ obtained_at INTEGER NOT NULL
 expires_at INTEGER NOT NULL
 ```
 
+`cover_cache`
+
+```text
+fs_id INTEGER PRIMARY KEY
+source_modified_at INTEGER NULL
+source_type TEXT NOT NULL
+local_path TEXT NOT NULL
+width INTEGER NOT NULL
+height INTEGER NOT NULL
+file_size INTEGER NOT NULL
+created_at INTEGER NOT NULL
+last_accessed_at INTEGER NOT NULL
+```
+
 `playback_progress`
 
 ```text
@@ -450,9 +487,33 @@ seek_seconds = 10
 resolve_all_dlinks_in_folder = true
 autoplay_next = false
 show_non_video_files = false
+cover_cache_max_mb = 512
 ```
 
 敏感 Token 不得进入 Room/DataStore 明文。
+
+### 8.3 视频封面
+
+浏览页的视频必须使用 16:9 封面卡片，不以通用文件图标作为正常完成态。封面解析顺序固定为：
+
+1. 命中 `cover_cache` 且本地文件存在、`source_modified_at` 与视频修改时间一致：直接显示本地封面。
+2. 百度 `list?web=1` 或 `filemetas` 返回可用的 `thumbnail_url/thumbs`：下载图片并持久化到本地。
+3. 百度没有缩略图：等待对应视频 `dlink` 可用后，使用 `MediaMetadataRetriever.setDataSource(url, headers)` 尝试截取第 3 秒画面。
+4. 远程缩略图与帧截取都失败：显示带文件名首字和播放图标的降级封面，并记录失败时间；24 小时内不重复生成。
+
+本地封面规范：
+
+- 存放目录：`filesDir/covers/`，不能只依赖 Coil 临时磁盘缓存。
+- 文件名：`{fsId}_{modifiedAt}.webp`。
+- 最大尺寸：640×360，保持 16:9；源图非 16:9 时居中裁剪。
+- 格式：WebP lossy，质量 82。
+- 生成与下载并发上限为 2，不能阻塞目录首帧或播放器。
+- 封面下载/视频帧读取属于 CDN 数据请求，不写入文件 API 调用计数。
+- 总容量默认 512 MB；超过后按 `last_accessed_at` 从旧到新清理到 90% 容量。
+- 视频 `modified_at` 变化时删除旧封面并重新生成。
+- 删除目录缓存时不立即删除封面；由 LRU 统一回收。
+
+Compose 卡片通过 `CoverRepository.observeCover(fsId)` 观察本地路径；图片加载可使用 Coil，但 `cover_cache` 和本地文件才是持久缓存事实来源。
 
 ## 9. Token 安全
 
@@ -491,12 +552,15 @@ Splash/AuthGate
 
 ### 10.2 BrowserScreen
 
-- 默认 5 列 16:9 卡片网格。
+- 默认 5 列卡片网格。
+- `root_path` 页面只显示直属文件夹，使用文件夹卡片；该页面不触发 `filemetas`。
+- 进入具体媒体文件夹后显示直属子文件夹与视频；视频使用 16:9 封面卡片，并立即启动该文件夹直属视频的批量 `dlink` 与封面准备任务。
 - 文件夹先显示，视频后显示。
 - 默认自然排序，确保“第 2 集”排在“第 10 集”前。
 - 使用通用自然排序，让文件名中的数字按数值排序；不假定内容是连续剧。
 - 非视频默认隐藏；支持扩展名：`mp4,mkv,mov,avi,webm,flv,ts,m2ts,m4v,rmvb`。
-- 卡片显示文件名、时长（获取到时）、播放进度和已看完标记。
+- 视频卡片必须显示本地缓存封面；准备期间显示稳定占位骨架，不能因图片加载改变卡片尺寸。
+- 视频卡片显示文件名、时长（获取到时）、播放进度和已看完标记。
 - 目录缓存存在时首帧只读数据库，不等待网络。
 - 空目录、无网络、授权过期和频控必须有不同文案。
 
@@ -626,6 +690,7 @@ class AppContainer(application: Application) {
     val tokenVault: TokenVault
     val authRepository: AuthRepository
     val cloudDriveRepository: CloudDriveRepository
+    val coverRepository: CoverRepository
     val playbackProgressRepository: PlaybackProgressRepository
     val settingsRepository: SettingsRepository
     val apiDiagnosticsRepository: ApiDiagnosticsRepository
@@ -637,6 +702,7 @@ class AppContainer(application: Application) {
 - Token 刷新使用一个全局 `Mutex`。
 - 每个目录路径使用 single-flight，避免重复 `list`。
 - 同一批 `fs_id` 的解析进行去重；缓存命中项不再发请求。
+- 封面下载/生成使用应用级 `SupervisorJob`，并发上限 2；同一 `fs_id` 只允许一个任务。
 - Repository 只暴露 `suspend`/`Flow`；不得在 UI 层直接创建线程。
 - ViewModel 使用 `viewModelScope`，网络/数据库由挂起 API 自行切换调度器。
 
@@ -648,7 +714,9 @@ class AppContainer(application: Application) {
 
 - 中文路径 URL 编码。
 - `dlink` 正确追加 Access Token。
-- 7 小时过期判断和时钟边界。
+- 8 小时缓存、5 分钟播放安全余量和时钟边界。
+- 根目录不解析 `dlink`，具体媒体文件夹才触发批量解析。
+- 封面命中、失效、远程下载、帧截取降级和 512 MB LRU 清理。
 - Refresh Token 轮换及并发刷新只发生一次。
 - `第 2 集`、`第 10 集` 自然排序。
 - 批量 `fsids` 分组，每组不超过 100。
@@ -707,12 +775,13 @@ CI 不运行真实百度账号测试，不保存任何 Secret。
 ### 阶段 3：目录与缓存
 
 - 实现百度 list DTO、Repository、Room schema。
-- 实现默认路径浏览、自然排序、手动刷新、焦点恢复。
-- 验收：进入 `/apps/视频`；已缓存目录第二次进入不调用 `list`。
+- 实现默认路径浏览、根目录文件夹过滤、自然排序、手动刷新、焦点恢复。
+- 实现封面下载/生成、`cover_cache` 和本地 LRU。
+- 验收：进入 `/apps/视频` 只显示文件夹且不请求 `dlink`；已缓存目录第二次进入不调用 `list`。
 
 ### 阶段 4：播放
 
-- 实现 filemetas 批量解析、dlink 缓存、Media3 播放器。
+- 实现具体媒体文件夹的 filemetas 批量解析、8 小时 dlink 缓存、Media3 播放器。
 - 加入 UA、Range、302 和进度保存。
 - 验收：真实视频返回 206 并完成播放、拖动和续播。
 
@@ -737,7 +806,9 @@ CI 不运行真实百度账号测试，不保存任何 Secret。
 - 默认直接进入指定根目录。
 - 目录缓存命中时启动不调用百度文件 API。
 - 能用遥控器完整浏览、播放、暂停、快进、快退和返回。
-- `dlink` 批量获取与 7 小时缓存有效。
+- 根目录只展示文件夹，不获取 `dlink`。
+- 具体媒体文件夹的 `dlink` 批量获取与 8 小时缓存有效。
+- 每个视频有 16:9 封面，重新启动应用后可直接使用本地封面缓存。
 - 大文件 Range 播放和拖动可用。
 - 播放进度可保存；播放结束不自动连播。
 - Token/dlink 过期可自动恢复一次。
