@@ -192,10 +192,10 @@ interface CloudDriveRepository {
 
 interface AuthRepository {
     fun observeAuthState(): StateFlow<AuthState>
-    suspend fun requestDeviceCode(): DeviceAuthorization
-    suspend fun pollDeviceAuthorization(deviceCode: String): TokenBundle
+    suspend fun authorize()
     suspend fun ensureValidAccessToken(): String
     suspend fun logout()
+    fun cancelAuthorization()
 }
 
 interface PlaybackProgressRepository {
@@ -534,6 +534,8 @@ BAIDU_CLIENT_SECRET=your_secret_key
 ```
 
 该文件必须被 `.gitignore`。构建时生成 `BuildConfig` 字段。Release APK 本身仍可被逆向获得 SecretKey，这是无后端单 APK 方案的已接受限制。
+
+设备码请求和轮询属于 `data:baidu` 内部的 `BaiduOAuthClient` 细节，由 `AuthRepository.authorize()` 驱动完整状态机，UI 不接触百度 DTO。Debug 变体额外提供普通手机 Launcher，并把 Leanback 标记为非必需，便于没有电视时联调；Release 变体仍保持 Leanback-only。
 
 ## 10. 浏览界面与遥控器交互
 

@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             YunTvTheme {
-                YunTvNavHost()
+                YunTvNavHost((application as YunTvApplication).container)
             }
         }
     }

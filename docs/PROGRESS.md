@@ -1,8 +1,8 @@
 # YunTV 实施进度
 
 - 最后更新：2026-11-20
-- 当前阶段：阶段 1（工程骨架）进行中
-- 总体状态：工程、基础 TV 界面与 Debug APK 已完成；等待目标电视真机启动验收
+- 当前阶段：阶段 2（OAuth 与安全存储）进行中
+- 总体状态：工程骨架已验收；OAuth、Keystore 与自动刷新代码已完成，等待真实百度扫码验收
 - 技术基线：[TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md)
 
 ## 维护规则
@@ -20,8 +20,8 @@
 | 阶段 | 状态 | 完成度 | 验收摘要 |
 |---|---|---:|---|
 | 0. 需求验证与技术设计 | 已完成 | 100% | 百度 OAuth、目录、dlink、Range 链路实测通过；技术方案定稿 |
-| 1. 工程骨架 | 进行中 | 85% | 构建、测试和 Lint 已通过；待目标电视安装启动 |
-| 2. OAuth 与安全存储 | 未开始 | 0% | — |
+| 1. 工程骨架 | 已完成 | 100% | Debug APK 已在 Android 设备安装并冷启动，Activity 前台与横屏验证通过 |
+| 2. OAuth 与安全存储 | 进行中 | 80% | OAuth/二维码/Keystore/刷新状态机已实现；待真实扫码与重启验收 |
 | 3. 目录、缓存与封面 | 未开始 | 0% | — |
 | 4. dlink 与播放器 | 未开始 | 0% | — |
 | 5. 可靠性与诊断 | 未开始 | 0% | — |
@@ -46,7 +46,7 @@
 
 ## 阶段 1：工程骨架
 
-状态：进行中
+状态：已完成
 
 - [x] 创建 Gradle 9.6.0 / AGP 9.5.1 多模块工程。
 - [x] 配置 AGP 内置 Kotlin、Compose for TV、Media3、Room、KSP 和版本目录。
@@ -55,27 +55,32 @@
 - [x] 创建 `AppContainer`、基础主题、导航和阶段占位页面。
 - [x] 添加单元测试与 MockWebServer 测试基础设施。
 - [x] Debug APK 构建通过。
-- [ ] APK 在目标电视盒子安装并可由遥控器启动。
+- [x] APK 在当前可用 Android 设备安装并可启动；无电视期间使用手机 Debug Launcher 代替基础启动验收。
 
 验收证据：
 
-- `./gradlew help :app:assembleDebug :core:model:testDebugUnitTest :app:lintDebug` 通过，共执行/检查 474 个任务。
+- `./gradlew :app:assembleDebug :app:lintDebug test --continue` 通过，共执行/检查 509 个任务。
 - `aapt2 dump badging` 确认声明 Leanback、无需触屏、`LEANBACK_LAUNCHER`、横屏 Activity。
-- Debug APK：`app/build/outputs/apk/debug/app-debug.apk`，19,072,608 bytes，SHA-256 `147FA09C88E88C623F3DF1F533AE8F88086C59160A718137E7D11E54D1F7FCA6`。
-- 当前 `adb devices` 无目标设备，尚不能完成 TV Launcher 与遥控器真机验收。
+- 当前 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`，20,042,391 bytes，SHA-256 `75E469F77AAE0B9D82496BDB34D5CD053D75B273FF82C5653BABA654B04537D6`。
+- 2026-11-20 使用已连接手机冷启动 `com.yuntv.app/.MainActivity` 成功，状态 `ok`，Activity 位于前台；用户确认界面可用。TV Launcher 与遥控器专项验收延后到阶段 6。
 
 ## 阶段 2：OAuth 与安全存储
 
-状态：未开始
+状态：进行中
 
-- [ ] 本地构建配置注入 AppKey/SecretKey，敏感文件加入 `.gitignore`。
-- [ ] 实现设备码、二维码显示和授权轮询。
-- [ ] 实现 Android Keystore `TokenVault`。
-- [ ] 实现 Access Token 自动刷新和 Refresh Token 原子轮换。
-- [ ] 实现认证状态机、离线缓存入口和退出登录。
+- [x] 本地构建配置注入 AppKey/SecretKey，敏感文件加入 `.gitignore`。
+- [x] 实现设备码、二维码显示和授权轮询。
+- [x] 实现 Android Keystore `TokenVault`。
+- [x] 实现 Access Token 自动刷新和 Refresh Token 原子轮换。
+- [x] 实现认证状态机、离线缓存入口和退出登录。
 - [ ] 首次扫码成功，杀进程重开无需扫码。
 
-验收证据：待补充。
+验收证据：
+
+- OAuth MockWebServer 测试覆盖请求参数、UA、最小轮询间隔、pending、Token 返回和 Refresh Token 轮换。
+- 全工程测试、Android Lint 和 Debug APK 构建通过。
+- 新 Debug APK 已覆盖安装到手机，冷启动状态 `ok`，前台运行无崩溃；普通 `LAUNCHER` 与 `LEANBACK_LAUNCHER` 均可解析。
+- 真实扫码待本机 `secrets.properties` 配置完成后执行。
 
 ## 阶段 3：目录、缓存与封面
 
@@ -140,11 +145,12 @@
 
 ## 当前下一步
 
-连接目标电视的 ADB，安装 Debug APK，验证 TV Launcher 启动、5 列界面、首项焦点、文件夹进入与返回；通过后结束阶段 1 并开始 OAuth。
+在本机创建不提交的 `secrets.properties`，重新构建安装，完成首次扫码、杀进程重开和退出登录验收；通过后进入目录与缓存阶段。
 
 ## 阻塞项
 
-- 阶段 1 的真机验收需要目标电视开启 ADB 并与开发机连接；代码实现本身未阻塞。
+- 当前没有目标电视，TV Launcher 与遥控器专项验收延后到阶段 6。
+- 阶段 2 的真实扫码需要本机 `secrets.properties` 中完整的百度 AppKey/SecretKey；源码和自动化测试未阻塞。
 
 ## 决策变更
 
@@ -155,3 +161,4 @@
 | 2026-11-20 | dlink 缓存由 7 小时安全 TTL 改为完整 8 小时缓存，播放前保留 5 分钟余量 | 对齐百度链接有效期并最大化 API 调用复用 |
 | 2026-11-20 | 增加视频封面持久化缓存 | TV 浏览体验需要可识别的视觉封面 |
 | 2026-11-20 | 构建基线调整为 AGP 9.5.1、Gradle 9.6.0、API 37、内置 Kotlin 升级至 2.4.10、KSP 2.3.6 | 与本机 SDK、AGP 官方支持矩阵及 KSP 2.3.x 编译器依赖对齐 |
+| 2026-11-20 | Debug 变体增加手机 Launcher，Release 保持 Leanback-only | 当前无电视，允许用手机完成认证、目录和播放联调，不改变正式 TV 交付形态 |

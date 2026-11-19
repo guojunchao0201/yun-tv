@@ -16,7 +16,8 @@ import com.yuntv.core.ui.FocusTile
 
 @Composable
 fun SettingsScreen(
-    onAuthorize: () -> Unit,
+    isOffline: Boolean,
+    onLogout: () -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -33,9 +34,9 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.secondary,
         )
         FocusTile(
-            title = "百度授权",
-            subtitle = "打开二维码授权骨架",
-            onClick = onAuthorize,
+            title = "百度账号",
+            subtitle = if (isOffline) "已登录，当前离线" else "已登录 · 选择退出登录",
+            onClick = onLogout,
             modifier = Modifier.size(width = 360.dp, height = 140.dp),
         )
         FocusTile(

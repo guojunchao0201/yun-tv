@@ -1,6 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+}
+
+val baiduSecrets = Properties().apply {
+    val secretsFile = rootProject.file("secrets.properties")
+    if (secretsFile.isFile) secretsFile.inputStream().use(::load)
+}
+
+fun buildConfigString(name: String): String {
+    val value = baiduSecrets.getProperty(name, "")
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+    return "\"$value\""
 }
 
 android {
@@ -15,6 +29,8 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BAIDU_CLIENT_ID", buildConfigString("BAIDU_CLIENT_ID"))
+        buildConfigField("String", "BAIDU_CLIENT_SECRET", buildConfigString("BAIDU_CLIENT_SECRET"))
     }
 
     buildFeatures {
@@ -56,6 +72,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
     implementation(libs.androidx.navigation.compose)
 
     implementation(platform(libs.androidx.compose.bom))
