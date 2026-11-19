@@ -1,0 +1,27 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.compose.compiler)
+}
+
+android {
+    namespace = "com.yuntv.feature.player"
+    compileSdk = 37
+    defaultConfig { minSdk = 26 }
+    buildFeatures { compose = true }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation(project(":core:ui"))
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.datasource.okhttp)
+    implementation(libs.androidx.media3.session)
+}

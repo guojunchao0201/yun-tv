@@ -1,8 +1,8 @@
 # YunTV 实施进度
 
 - 最后更新：2026-11-20
-- 当前阶段：阶段 0（需求验证与技术设计）已完成，阶段 1 尚未开始
-- 总体状态：设计完成，应用代码尚未创建
+- 当前阶段：阶段 1（工程骨架）进行中
+- 总体状态：工程、基础 TV 界面与 Debug APK 已完成；等待目标电视真机启动验收
 - 技术基线：[TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md)
 
 ## 维护规则
@@ -20,7 +20,7 @@
 | 阶段 | 状态 | 完成度 | 验收摘要 |
 |---|---|---:|---|
 | 0. 需求验证与技术设计 | 已完成 | 100% | 百度 OAuth、目录、dlink、Range 链路实测通过；技术方案定稿 |
-| 1. 工程骨架 | 未开始 | 0% | 尚未创建 Android 工程 |
+| 1. 工程骨架 | 进行中 | 85% | 构建、测试和 Lint 已通过；待目标电视安装启动 |
 | 2. OAuth 与安全存储 | 未开始 | 0% | — |
 | 3. 目录、缓存与封面 | 未开始 | 0% | — |
 | 4. dlink 与播放器 | 未开始 | 0% | — |
@@ -46,18 +46,23 @@
 
 ## 阶段 1：工程骨架
 
-状态：未开始
+状态：进行中
 
-- [ ] 创建 Gradle 8.13 / AGP 8.13.2 多模块工程。
-- [ ] 配置 Kotlin、Compose for TV、Media3、Room、KSP 和版本目录。
-- [ ] 配置国内 Maven 镜像优先、官方源回退。
-- [ ] 配置 Android TV Manifest、Launcher、横屏、图标与 Banner。
-- [ ] 创建 `AppContainer`、基础主题、导航和空页面。
-- [ ] 添加单元测试与 MockWebServer 测试基础设施。
-- [ ] Debug APK 构建通过。
+- [x] 创建 Gradle 9.6.0 / AGP 9.5.1 多模块工程。
+- [x] 配置 AGP 内置 Kotlin、Compose for TV、Media3、Room、KSP 和版本目录。
+- [x] 配置国内 Maven 镜像优先、官方源回退，并为 Wrapper 固定 SHA-256。
+- [x] 配置 Android TV Manifest、Launcher、横屏、图标与 Banner。
+- [x] 创建 `AppContainer`、基础主题、导航和阶段占位页面。
+- [x] 添加单元测试与 MockWebServer 测试基础设施。
+- [x] Debug APK 构建通过。
 - [ ] APK 在目标电视盒子安装并可由遥控器启动。
 
-验收证据：待补充。
+验收证据：
+
+- `./gradlew help :app:assembleDebug :core:model:testDebugUnitTest :app:lintDebug` 通过，共执行/检查 474 个任务。
+- `aapt2 dump badging` 确认声明 Leanback、无需触屏、`LEANBACK_LAUNCHER`、横屏 Activity。
+- Debug APK：`app/build/outputs/apk/debug/app-debug.apk`，19,072,608 bytes，SHA-256 `147FA09C88E88C623F3DF1F533AE8F88086C59160A718137E7D11E54D1F7FCA6`。
+- 当前 `adb devices` 无目标设备，尚不能完成 TV Launcher 与遥控器真机验收。
 
 ## 阶段 2：OAuth 与安全存储
 
@@ -135,11 +140,11 @@
 
 ## 当前下一步
 
-开始阶段 1：创建 Android 多模块工程并产出可在目标电视盒子启动的空壳 Debug APK。
+连接目标电视的 ADB，安装 Debug APK，验证 TV Launcher 启动、5 列界面、首项焦点、文件夹进入与返回；通过后结束阶段 1 并开始 OAuth。
 
 ## 阻塞项
 
-当前无阻塞项。
+- 阶段 1 的真机验收需要目标电视开启 ADB 并与开发机连接；代码实现本身未阻塞。
 
 ## 决策变更
 
@@ -149,3 +154,4 @@
 | 2026-11-20 | 根目录不获取 dlink，具体媒体文件夹批量获取直属全部视频 dlink | 内容以随机选择观看为主，无连续剧/下一集假设 |
 | 2026-11-20 | dlink 缓存由 7 小时安全 TTL 改为完整 8 小时缓存，播放前保留 5 分钟余量 | 对齐百度链接有效期并最大化 API 调用复用 |
 | 2026-11-20 | 增加视频封面持久化缓存 | TV 浏览体验需要可识别的视觉封面 |
+| 2026-11-20 | 构建基线调整为 AGP 9.5.1、Gradle 9.6.0、API 37、内置 Kotlin 升级至 2.4.10、KSP 2.3.6 | 与本机 SDK、AGP 官方支持矩阵及 KSP 2.3.x 编译器依赖对齐 |

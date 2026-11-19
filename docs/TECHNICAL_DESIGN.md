@@ -71,12 +71,12 @@ YunTV 是供单个用户长期自用的百度网盘电视播放器。首次安�
 | 项目 | 选择 |
 |---|---|
 | JDK | 17 |
-| Gradle | 8.13 |
-| Android Gradle Plugin | 8.13.2 |
-| Kotlin | 2.2.21 |
-| KSP | 2.2.21-2.0.5 |
-| compileSdk | 36 |
-| targetSdk | 36 |
+| Gradle | 9.6.0 |
+| Android Gradle Plugin | 9.5.1 |
+| Kotlin | AGP 内置支持，升级到 2.4.10 |
+| KSP | 2.3.6 |
+| compileSdk | 37 |
+| targetSdk | 37 |
 | minSdk | 26 |
 | Java/Kotlin JVM target | 17 |
 | ABI | 默认通用 APK；发布时额外生成 arm64-v8a 和 armeabi-v7a APK |
@@ -125,20 +125,20 @@ media3-session
 4. `mavenCentral()`。
 5. `gradlePluginPortal()`，仅插件解析需要。
 
-Gradle 分发包可优先使用已核验 SHA-256 的腾讯云/华为云镜像；找不到对应 8.13 或校验不一致时使用 Gradle 官方分发地址。不得关闭 TLS 或依赖校验来迁就镜像。
+Gradle Wrapper 使用腾讯云的 Gradle 9.6.0 分发包，并固定官方 SHA-256；镜像不可用或校验不一致时改用相同版本的 Gradle 官方分发地址。不得关闭 TLS 或依赖校验来迁就镜像。
 
 Gradle 插件固定使用：
 
 ```text
-com.android.application 8.13.2
-com.android.library 8.13.2
-org.jetbrains.kotlin.android 2.2.21
-org.jetbrains.kotlin.plugin.compose 2.2.21
-org.jetbrains.kotlin.plugin.serialization 2.2.21
-com.google.devtools.ksp 2.2.21-2.0.5
+com.android.application 9.5.1
+com.android.library 9.5.1
+AGP built-in Kotlin + kotlin-gradle-plugin 2.4.10
+org.jetbrains.kotlin.plugin.compose 2.4.10
+org.jetbrains.kotlin.plugin.serialization 2.4.10
+com.google.devtools.ksp 2.3.6
 ```
 
-选择 AGP 8.13.2 而不是 AGP 9.x，是为了使用成熟的显式 Kotlin Gradle Plugin/KSP 配置，避免 AGP 9 内置 Kotlin 迁移增加首版构建变量。AGP 8.13 官方支持 API 36.1、Gradle 8.13 和 JDK 17。
+本机 Android SDK 已安装 API 37，采用官方支持 API 37、Gradle 9.6.0 和 JDK 17 的 AGP 9.5.1。AGP 9 默认启用内置 Kotlin，因此不再应用 `org.jetbrains.kotlin.android`；通过根构建脚本把 AGP 自带的 Kotlin 2.2.10 升级到 2.4.10，Compose Compiler 与 Serialization 使用相同版本，KSP 使用官方 AGP 9 迁移要求的 2.3.6。该组合已经通过本项目 Debug 构建、单元测试和 Android Lint。
 
 ## 4. 仓库结构
 
@@ -840,4 +840,5 @@ CI 不运行真实百度账号测试，不保存任何 Secret。
 - [Compose 焦点](https://developer.android.com/develop/ui/compose/touch-input/focus)
 - [Media3 ExoPlayer](https://developer.android.com/media/media3/exoplayer)
 - [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
-- [AGP 8.13 发布说明](https://developer.android.com/build/releases/past-releases/agp-8-13-0-release-notes)
+- [AGP 9.5 发布说明](https://developer.android.com/build/releases/agp-9-5-0-release-notes)
+- [AGP 内置 Kotlin](https://developer.android.com/build/migrate-to-built-in-kotlin)

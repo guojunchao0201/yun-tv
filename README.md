@@ -2,7 +2,7 @@
 
 面向 Android TV 的百度网盘原生播放器。项目采用单 APK、百度官方 API 直连方案，不依赖 NAS、电脑、Docker、OpenList 或其他服务端。
 
-当前阶段先完成技术方案，应用代码尚未开始实现。
+当前处于阶段 1（工程骨架）：Android TV 多模块工程、基础导航、遥控器焦点界面和 Debug APK 已建立，等待目标电视真机启动验收。
 
 - [技术设计与实施规范](docs/TECHNICAL_DESIGN.md)
 - [实施进度](docs/PROGRESS.md)
