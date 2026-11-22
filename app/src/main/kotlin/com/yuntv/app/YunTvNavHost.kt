@@ -7,6 +7,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.yuntv.core.model.AppRoute
 import com.yuntv.core.model.AuthState
 import com.yuntv.feature.auth.AuthorizationScreen
@@ -50,8 +52,9 @@ private fun AuthenticatedNavigation(
         composable(AppRoute.Browser.route) {
             BrowserScreen(
                 repository = container.cloudDriveRepository,
+                coverRepository = container.coverRepository,
                 onOpenSettings = { navController.navigate(AppRoute.Settings.route) },
-                onPlay = { navController.navigate(AppRoute.Player.route) },
+                onPlay = { navController.navigate(AppRoute.Player.createRoute(it)) },
             )
         }
         composable(AppRoute.Settings.route) {
@@ -61,8 +64,17 @@ private fun AuthenticatedNavigation(
                 onBack = { navController.popBackStack() },
             )
         }
-        composable(AppRoute.Player.route) {
-            PlayerScreen(onBack = { navController.popBackStack() })
+        composable(
+            route = AppRoute.Player.route,
+            arguments = listOf(navArgument(AppRoute.Player.FS_ID_ARGUMENT) { type = NavType.LongType }),
+        ) { entry ->
+            PlayerScreen(
+                fsId = checkNotNull(entry.arguments?.getLong(AppRoute.Player.FS_ID_ARGUMENT)),
+                cloudDriveRepository = container.cloudDriveRepository,
+                progressRepository = container.playbackProgressRepository,
+                playbackHttpClient = container.playbackHttpClient,
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }

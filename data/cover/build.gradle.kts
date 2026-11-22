@@ -18,4 +18,9 @@ dependencies {
     implementation(project(":core:database"))
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.junit4)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }

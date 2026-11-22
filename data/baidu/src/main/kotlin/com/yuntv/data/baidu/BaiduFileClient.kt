@@ -13,12 +13,20 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+interface BaiduFileService {
+    suspend fun listDirectory(path: String, accessToken: String): List<DriveItem>
+    suspend fun fileMetas(fsIds: List<Long>, accessToken: String): List<ResolvedDlink>
+}
+
+data class ResolvedDlink(val fsId: Long, val url: String)
+
 class BaiduFileClient(
     private val client: OkHttpClient,
     private val json: Json = Json { ignoreUnknownKeys = true },
     private val endpoint: HttpUrl = "https://pan.baidu.com/rest/2.0/xpan/file".toHttpUrl(),
-) {
-    suspend fun listDirectory(path: String, accessToken: String): List<DriveItem> =
+    private val multimediaEndpoint: HttpUrl = "https://pan.baidu.com/rest/2.0/xpan/multimedia".toHttpUrl(),
+) : BaiduFileService {
+    override suspend fun listDirectory(path: String, accessToken: String): List<DriveItem> =
         withContext(Dispatchers.IO) {
             val result = mutableListOf<DriveItem>()
             var start = 0
@@ -29,6 +37,30 @@ class BaiduFileClient(
             } while (page.items.size == PAGE_SIZE)
             result
         }
+
+    override suspend fun fileMetas(
+        fsIds: List<Long>,
+        accessToken: String,
+    ): List<ResolvedDlink> = withContext(Dispatchers.IO) {
+        require(fsIds.isNotEmpty()) { "fsIds 不能为空" }
+        require(fsIds.size <= FILE_METAS_BATCH_SIZE) { "filemetas 每批最多 100 个 fs_id" }
+        val url = multimediaEndpoint.newBuilder()
+            .addQueryParameter("method", "filemetas")
+            .addQueryParameter("fsids", fsIds.joinToString(separator = ",", prefix = "[", postfix = "]"))
+            .addQueryParameter("dlink", "1")
+            .addQueryParameter("needmedia", "1")
+            .addQueryParameter("access_token", accessToken)
+            .build()
+        val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).get().build()
+        client.newCall(request).execute().use { response ->
+            val body = response.body.string()
+            if (body.isBlank()) throw IOException("百度文件信息返回空响应（HTTP ${response.code}）")
+            val decoded = runCatching { json.decodeFromString<FileMetasResponse>(body) }
+                .getOrElse { throw BaiduFileException("无法解析百度文件信息响应", cause = it) }
+            if (decoded.errno != 0) throw BaiduFileException.from(decoded.errno, decoded.requestId)
+            decoded.list.mapNotNull { item -> item.dlink?.let { ResolvedDlink(item.fsId, it) } }
+        }
+    }
 
     private fun requestPage(path: String, accessToken: String, start: Int): ListResponse {
         val url = endpoint.newBuilder()
@@ -66,6 +98,19 @@ class BaiduFileClient(
     }
 
     @Serializable
+    private data class FileMetasResponse(
+        val errno: Int = 0,
+        @SerialName("request_id") val requestId: String? = null,
+        val list: List<FileMetaResponse> = emptyList(),
+    )
+
+    @Serializable
+    private data class FileMetaResponse(
+        @SerialName("fs_id") val fsId: Long,
+        val dlink: String? = null,
+    )
+
+    @Serializable
     private data class FileItemResponse(
         @SerialName("fs_id") val fsId: Long,
         @SerialName("server_filename") val name: String,
@@ -93,6 +138,7 @@ class BaiduFileClient(
 
     private companion object {
         const val PAGE_SIZE = 1_000
+        const val FILE_METAS_BATCH_SIZE = 100
         const val USER_AGENT = "pan.baidu.com"
     }
 }

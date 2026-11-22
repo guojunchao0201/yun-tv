@@ -21,6 +21,9 @@ abstract class DirectoryDao {
     @Query("SELECT * FROM drive_item WHERE parent_path = :path ORDER BY is_directory DESC, sort_key ASC")
     abstract suspend fun getItems(path: String): List<DriveItemEntity>
 
+    @Query("SELECT * FROM drive_item WHERE fs_id = :fsId LIMIT 1")
+    abstract suspend fun findItem(fsId: Long): DriveItemEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertSnapshot(snapshot: DirectorySnapshotEntity)
 

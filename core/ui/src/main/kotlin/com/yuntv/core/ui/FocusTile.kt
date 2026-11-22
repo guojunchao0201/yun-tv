@@ -31,6 +31,7 @@ fun FocusTile(
     subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onFocused: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -42,7 +43,10 @@ fun FocusTile(
     Column(
         modifier = modifier
             .scale(scale)
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused()
+            }
             .focusable()
             .clickable(onClick = onClick)
             .background(

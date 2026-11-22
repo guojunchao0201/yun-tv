@@ -2,7 +2,7 @@
 
 面向 Android TV 的百度网盘原生播放器。项目采用单 APK、百度官方 API 直连方案，不依赖 NAS、电脑、Docker、OpenList 或其他服务端。
 
-当前并行推进阶段 2 与阶段 3：OAuth 代码已完成、真机扫码验收暂缓；目录 API、Room 缓存和真实浏览页主干已完成，正在实现封面缓存。
+阶段 4 代码已完成：目录与封面缓存、`filemetas` 批处理、8 小时 dlink 缓存、Media3 播放和进度恢复均已落地。OAuth 与大文件 Range 播放仍待真机验收。
 
 - [技术设计与实施规范](docs/TECHNICAL_DESIGN.md)
 - [实施进度](docs/PROGRESS.md)

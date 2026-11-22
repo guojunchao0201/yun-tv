@@ -17,9 +17,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
 class DefaultCloudDriveRepository(
-    private val client: BaiduFileClient,
+    private val client: BaiduFileService,
     private val authRepository: AuthRepository,
     private val directoryDao: DirectoryDao,
+    private val playbackResolver: BaiduPlaybackResolver,
     private val rootPath: String = MediaPathPolicy.DEFAULT_ROOT_PATH,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1_000L },
 ) : CloudDriveRepository {
@@ -58,6 +59,12 @@ class DefaultCloudDriveRepository(
             inFlightRefreshes.remove(normalized, mine)
         }
     }
+
+    override suspend fun findItem(fsId: Long): DriveItem? = directoryDao.findItem(fsId)?.toModel()
+
+    override suspend fun resolvePlayback(fsIds: List<Long>) = playbackResolver.resolve(fsIds)
+
+    override suspend fun invalidatePlayback(fsId: Long) = playbackResolver.invalidate(fsId)
 
     private suspend fun refreshNow(path: String, force: Boolean): DirectorySnapshot {
         if (!force) cached(path)?.let { return it }

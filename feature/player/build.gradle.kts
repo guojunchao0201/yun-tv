@@ -15,6 +15,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -24,4 +25,8 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
 }

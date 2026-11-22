@@ -22,6 +22,7 @@ class BaiduFileClientTest {
         client = BaiduFileClient(
             client = OkHttpClient(),
             endpoint = server.url("/rest/2.0/xpan/file"),
+            multimediaEndpoint = server.url("/rest/2.0/xpan/multimedia"),
         )
     }
 
@@ -75,5 +76,26 @@ class BaiduFileClientTest {
         error as BaiduFileException
         assertEquals(31066, error.errno)
         assertEquals("req-1", error.requestId)
+    }
+
+    @Test
+    fun `filemetas requests dlinks with required parameters`() = runTest {
+        server.enqueue(MockResponse.Builder().body("""
+            {"errno":0,"list":[
+              {"fs_id":42,"dlink":"https://d.pcs.baidu.com/file/42?fid=abc"},
+              {"fs_id":43,"dlink":"https://d.pcs.baidu.com/file/43?fid=def"}
+            ]}
+        """.trimIndent()).build())
+
+        val links = client.fileMetas(listOf(42L, 43L), "token-value")
+
+        assertEquals(listOf(42L, 43L), links.map { it.fsId })
+        val request = server.takeRequest()
+        assertEquals("pan.baidu.com", request.headers["User-Agent"])
+        assertEquals("filemetas", request.url.queryParameter("method"))
+        assertEquals("[42,43]", request.url.queryParameter("fsids"))
+        assertEquals("1", request.url.queryParameter("dlink"))
+        assertEquals("1", request.url.queryParameter("needmedia"))
+        assertEquals("token-value", request.url.queryParameter("access_token"))
     }
 }

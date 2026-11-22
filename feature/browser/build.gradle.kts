@@ -23,4 +23,5 @@ dependencies {
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.coil.compose)
 }
