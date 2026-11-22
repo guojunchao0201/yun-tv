@@ -24,6 +24,7 @@ fun YunTvNavHost(container: AppContainer) {
         is AuthState.Authenticated,
         is AuthState.OfflineWithCachedData,
         -> AuthenticatedNavigation(
+            container = container,
             authState = authState,
             onLogout = { scope.launch { container.authRepository.logout() } },
         )
@@ -37,6 +38,7 @@ fun YunTvNavHost(container: AppContainer) {
 
 @Composable
 private fun AuthenticatedNavigation(
+    container: AppContainer,
     authState: AuthState,
     onLogout: () -> Unit,
 ) {
@@ -47,8 +49,9 @@ private fun AuthenticatedNavigation(
     ) {
         composable(AppRoute.Browser.route) {
             BrowserScreen(
+                repository = container.cloudDriveRepository,
                 onOpenSettings = { navController.navigate(AppRoute.Settings.route) },
-                onPlayDemo = { navController.navigate(AppRoute.Player.route) },
+                onPlay = { navController.navigate(AppRoute.Player.route) },
             )
         }
         composable(AppRoute.Settings.route) {

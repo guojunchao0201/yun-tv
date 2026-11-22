@@ -1,9 +1,12 @@
 package com.yuntv.app
 
 import android.app.Application
+import com.yuntv.core.database.YunTvDatabase
 import com.yuntv.core.model.MediaPathPolicy
 import com.yuntv.core.security.AndroidTokenVault
 import com.yuntv.data.baidu.BaiduOAuthClient
+import com.yuntv.data.baidu.BaiduFileClient
+import com.yuntv.data.baidu.DefaultCloudDriveRepository
 import com.yuntv.data.baidu.DefaultAuthRepository
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -34,5 +37,13 @@ class AppContainer(
         oauthClient = oauthClient,
         tokenVault = tokenVault,
         applicationScope = applicationScope,
+    )
+
+    private val database = YunTvDatabase.create(application)
+    val cloudDriveRepository = DefaultCloudDriveRepository(
+        client = BaiduFileClient(oauthHttpClient),
+        authRepository = authRepository,
+        directoryDao = database.directoryDao(),
+        rootPath = defaultRootPath,
     )
 }
